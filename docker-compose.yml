@@ -1,0 +1,58 @@
+name: python_ml
+
+services:
+    django:
+        build: .
+        container_name: django
+        ports:
+            - "8001:8000"
+        env_file:
+            - .env
+        environment:
+            DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+            DEBUG: ${DEBUG}
+            DJANGO_LOGLEVEL: ${DJANGO_LOGLEVEL}
+            DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+            DATABASE_ENGINE: ${DATABASE_ENGINE}
+            DATABASE_NAME: ${DATABASE_NAME}
+            DATABASE_USERNAME: ${DATABASE_USERNAME}
+            DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+            DATABASE_HOST: ${DATABASE_HOST}
+            DATABASE_PORT: 3306
+
+        depends_on:
+            - db
+            - redis_cache
+        # volumes:
+        #     - .:/python_ml               # Da usare solo in sviluppo per hot reload in caso di modifiche, altrimenti lasciare commentato
+                                         # static/media volumes non inclusi
+    
+    db:
+        image: mysql:lts
+        container_name: mysql
+        restart: always
+        ports:
+            - "${DATABASE_PORT}:3306"
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            # MYSQL_USER: ${MYSQL_USERNAME}
+            # MYSQL_PASSWORD: ${MYSQL_PASSWORD}            
+        volumes:
+            - mysql_data:/var/lib/mysql
+
+
+    redis_cache:
+        image: redis:7.4
+        container_name: redis_cache
+        ports:
+            - "6385:6379"
+        tmpfs:
+            - /data
+        # volumes:
+        #     - redis_data:/data
+    
+volumes:
+      mysql_data:
+          external: true
+    #   redis_data:
