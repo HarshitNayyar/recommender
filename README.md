@@ -1,44 +1,48 @@
 # Recommender System V3
 
-## Ibridizzazione del filtering
+## Notes:
 
-Il filtering delle raccomandazioni dei libri, precedentemente basato unicamente sulla strategia di content-based filtering, è stato ibridizzato con l'aggiunta di un modulo di collaborative filtering.
+This is my first machine learning project, where I integrated content-based filtering with collaborative filtering for a library recommendation system. The solution combines user preferences with similar users' behaviors to suggest books. If I were to redo this, I would probably choose FastAPI or Flask for building the microservice instead of Django, as they are faster and more lightweight frameworks, better suited for handling machine learning models and APIs.
 
-Per attuare l'ibridizzazione avevamo due strategie a disposizione:
+This recommender system was integrated as a microservice for a Library Management System, which allows seamless book recommendations based on user history and preferences. The microservice architecture is scalable and easily extendable, making it ideal for future features like real-time recommendation updates and more sophisticated clustering algorithms.
 
-### Ibridizzazione sequenziale
+This project demonstrates my ability to implement machine learning models in a production environment, apply JMS messaging for inter-service communication, and integrate various technologies to provide personalized recommendations.
+
+## Hybridization of Filtering
+
+The book recommendation filtering, previously based solely on content-based filtering strategy, has been hybridized by adding a collaborative filtering module.
+
+To implement the hybridization, we had two strategies available:
+
+### Sequential Hybridization
 L'ibridizzazione sequenziale prevede che il modulo **Collaborative** Filtering faccia una **prima selezione** di libri a seconda dei profili utenti e successivamente il modulo **Content-Based** filtering filtra questa lista, producendo la lista di raccomandazioni pertinenti.
 
-### Ibridizzazione parallela
-L'ibridizzazione parallela prevede l'implementazione di **due moduli**, uno **Content-Based** Filtering, uno **Collaborative** Filtering, che entrambi producono una lista di raccomandazioni. Entrambe le liste verranno poi passate in un algoritmo di **Rank Aggregation** per combinare una lista di raccomandazioni pertinenti.
+### Parallel Hybridization
+Parallel hybridization involves the implementation of two separate modules: one for Content-Based Filtering and one for Collaborative Filtering. Both modules produce a list of recommendations, which are then passed through a Rank Aggregation algorithm to combine a list of relevant recommendations.
 
-Abbiamo scelto questa strategia di ibridizzazione poiché più semplice da implementare inizialmente, successivamente, se sarà necessario passeremo alla stategia sequenziale.
+We chose this hybridization strategy as it was easier to implement initially. If necessary, we will move to the sequential strategy in the future.
 
-#### Aggiunta del modulo collaborative filtering
-Per l'aggiunta del modulo collaborative abbiamo scelto due strategie diverse per due necessità diverse:
-- Popolarità globale: basata sul **numero totale di prenotazioni del libro** (popolarità assoluta). Utilizzata come fallback in caso di **cold start** (utente senza libri prenotati).
-- Similarità tra utenti: basata sulla **similità tra utenti**. Usato per le raccomandazioni basate sul comportamento di utenti simili.
+#### Addition of Collaborative Filtering Module
+For the addition of the collaborative filtering module, we chose two different strategies based on different needs:
+- Global Popularity: Based on the total number of reservations of a book (absolute popularity). This is used as a fallback in the case of a cold start (an user without any reserved books).
+- User Similarity: Based on the similarity between users. This is used for recommendations based on the behavior of similar users.
 
-## Integrazione con progetto Biblioteca
+## Integration with Library Management System Project
 
-### Aggiunta servizio JMS per Book, Reservation e Customer
-Abbiamo aggiunto vari servizi JMS che al momento dell'aggiunta, della modifica o dell'eliminazione di un Book, Reservation o Customer, mandano un messaggio appropriato alla coda del microservizio di raccomandazione.
-Questi messaggi vengono poi gestiti in maniera appropriata da eventi e RESTful API in **Django**.
+### Added JMS Service for Book, Reservation, and Customer:
+We added several JMS services, so when a book, reservation, or customer is added, modified, or deleted, an appropriate message is sent to the recommendation microservice queue. These messages are then managed by events and RESTful APIs in Django.
 
-### Aggiunta di RESTful API in Django
+### Added RESTful API in Django:
+The microservice was integrated with a Dockerized MySQL database to manage the persistence of data. If I had to do it all over again I'd probably choose FastAPI or Flask.
 
-## Integrazione Database
-Abbiamo integrato il microservizio di raccomandazione con un database MySQL dockerizzato che gestisce la permanenza dei dati.
+## Database Integration
+The microservice was integrated with a Dockerized MySQL database to manage the persistence of data.
 
 ## Core Recommender
 
-### Linea guida del sistema di raccomandazione e clustering utenti
-
----
-
-#### 1. Estrazione dati  
-**Da**: Database Django (`Book`, `Customer`)  
-**Verso**: DataFrame Pandas
+#### 1. Data Extraction
+**From**: Django Database (Book, Customer)
+**To**: Pandas DataFrame
 
 ```python
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -48,88 +52,90 @@ cache_path = os.path.join(base_dir, 'cache', 'bert_embeddings.npy')
 ---
 
 #### 2. Preprocessing  
-Preparazione dei dati per l'embedding:
+Preparing data for embedding:
 
-- Pulizia dei valori `NaN` (`fill_nan_values`)
-- Conversione della cronologia (`history`) da ID a ISBN
-- Preparazione del testo per l'embedding (concatenazione con pesi)
+- Filling NaN values (fill_nan_values)
+- Converting history from ID to ISBN
+- Preparing text for embedding (concatenation with weights)
 
 ---
 
 #### 3. Features embedding  
-Conversione del catalogo di libri in vettori embeddings:
+Convert the book catalog into embedding vectors:
 
 ```python
 get_bert_feature_vectors(books)
 ```
 
-- Generazione degli embedding con BERT (`sentence-transformers`)
-- Cache locale (`.npy`) per evitare rigenerazioni se i dati rimangono invariati
+- Generate embeddings using BERT (sentence-transformers)
+- Local cache (.npy) to avoid regeneration if data remains unchanged
 
 ---
 
 #### 4. User embedding  
-Prende la lista degli utenti associata alla propria history, un dizionario ISBN libro associato all'indice del DataFrame dei libri e un array numpy con gli embeddings semantici dei libri, per produrre un **embedding semantico unico che rappresenta i gusti dell'utente**. 
+Takes the list of users associated with their history, an ISBN-to-book index dictionary, and a numpy array of book semantic embeddings to produce a unique semantic embedding representing the user's preferences.
 
 ```python
 get_user_embeddings(users_histories, isbn_to_book_index, feature_vectors)
 # isbn_to_book_index: dizionario {ISBN: indice corrispondente nel dataframe}
 ```
 
-- Calcolo della media degli embedding dei libri letti da ciascun utente
+- Calculate the average of embeddings for books read by each user
 
 ---
 
 #### 5. Clustering utenti  
-Raggruppamento degli utenti in base a gusti simili (embedding):
+Grouping users based on similar tastes (embeddings):
 
 ```python
 cluster_users_dbscan_best_eps(user_embeddings, **dbscan_kwargs)
 ```
 
-- **Riduzione dimensionale** con PCA (Principal Component Analysis):
-  - La PCA è una tecnica di riduzione della dimensionalità che trasforma un insieme di variabili correlate in un nuovo set di variabili non correlate, chiamate **componenti principali**, che sono le direzioni lungo le quali i dati variano di più, selezionate in ordine decrescente di varianza, riducendo così il numero di dimensioni mantenendo il più possibile l'informazione. Molto utilizzata per semplificare i dati e migliorare le prestazioni di modelli di machine learning.
-  - In questo contesto serve a ridurre le dimensioni dell’output BERT (MiniLM) da 384 a 10, migliorando l’efficienza e l'efficacia del clustering.
-- Ricerca automatica del valore ottimale di `eps` per DBSCAN (`find_best_dbscan_eps`)
-- Assegnazione degli utenti ai cluster (inclusi outlier con etichetta `-1`)
+- Dimensionality reduction with PCA (Principal Component Analysis):
+  - PCA is used to reduce the output dimensions of BERT (MiniLM) from 384 to 10, improving clustering efficiency.
+- Automatic search for the optimal eps value for DBSCAN (find_best_dbscan_eps)
+- Assigning users to clusters (including outliers labeled as -1)
 
-Nota: `**dbscan_kwargs` è un dizionario di parametri passati dinamicamente alla funzione.
+Note: dbscan_kwargs is a dictionary of parameters passed dynamically to the function.
 
 ---
 
-#### 6. Etichettatura dei cluster  
-Attribuzione di un'etichetta descrittiva ai cluster (es. "Fantasy, Avventura"):
+#### 6. Cluster Labeling  
+Assigning a descriptive label to each cluster (e.g., "Fantasy, Adventure"):
 
 ```python
 get_cluster_label(cluster_isbns, books, top_n=3)
 ```
 
-- Estrazione dei generi e parole chiave più frequenti
-- Generazione del nome rappresentativo per ogni cluster
+- Extracting most frequent genres and keywords
+- Generating a representative name for each cluster
 
 ---
 
-#### 7. Visualizzazione risultati (debug)  
-- Stampa a console degli utenti per cluster (nome, cognome, ID), inclusi gli outlier
+#### 7. Result Visualization (Debug)
+- Printing the users per cluster (name, surname, ID), including outliers.
 
 ---
 
-#### 8. Raccomandazione personalizzata (core)  
-Suggerimento di libri a utenti con gusti simili (approccio collaborativo):
+#### 8. Personalized Recommendation (Core) 
+Suggesting books to users with similar tastes (collaborative approach):
 
 ```python
 get_recommendations_for_user(user_id, top_n=5)
 ```
 
-- Recupero del cluster di appartenenza dell'utente
-- Esclusione dei libri già letti
-- Suggerimento dei libri più popolari nel cluster
+- Retrieve the user's cluster membership
+- Exclude books already read
+- Suggest the most popular books in the cluster
 
 ---
 
 #### Output  
-- Lista di `book_ids` consigliati
+- List of recommended book IDs.
 
+## Installation
+
+To install the required dependencies, run:
 
 ```sh
 pip install -r requirements.txt     --extra-index-url https://download.pytorch.org/whl/cpu
